@@ -1,0 +1,48 @@
+- name: "Laboratorio 03 - Sesión 6 - Templates"
+  hosts: nodo1
+  vars:
+    http_ports:
+        - 80
+        - 81
+        - 8080
+
+  tasks:
+    - name: "Añadir líneas al archivo /etc/named.conf"
+      blockinfile:
+        path: /etc/named.conf
+        block:  |
+          zone "dominio.local" IN {
+              type master;
+              file "named.dominio.local";
+          };
+    
+    - name: "Insertar el template del /var/named/named.dominio.local"
+      template:
+        src: templates/named.dominio.local.j2
+        dest: "/var/named/named.dominio.local"
+      loop: "{{ http_ports }}"
+      notify: "reinicia_named"
+    
+    - name: "Inciar el módulo meta para forzar reinicio named"
+      meta: flush_handlers
+    
+    - name: "Registrar comprobación de zona"
+      command: "named-checkzone dominio.local 	/var/named/named.dominio.local"
+      register: comprobar_zona
+    
+    # Todavía sin probar
+    - name: "Registrar si resuelve nombres"
+      command: "ping web01.dominio.local."
+      register: comprobar_ping
+    
+    # Todavía sin probar
+    - name: "Muestra"
+      debug:
+        msg: "Comprueba zona: {{ comprobar_zona }} y el ping {{ comprobar_ping }}"
+
+  
+  handlers:
+    -  name: "reinicia_named"
+       service: 
+         name: named
+         state: restarted

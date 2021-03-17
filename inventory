@@ -1,0 +1,10 @@
+[master]
+172.17.79.155
+[nodo1]
+172.17.79.157
+[nodo2]
+172.17.79.152
+[nodos:children]
+nodo1
+nodo2
+

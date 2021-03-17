@@ -1,0 +1,91 @@
+---
+- name: "Laboratorio 01 - Sesión 6 - Handlers"
+  hosts: nodo2
+  vars:
+    paquetes:
+      - bind
+      - bind-utils
+    lineas:
+      - "listen-on port 53 { 127.0.0.1; };"
+      - "listen-on-v6 port 53 { ::1; };"
+    
+  tasks:
+    - block:
+        - name: "Instalación de paquetería"
+          yum:
+            name: "{{ item }}"
+            state: present
+          loop: "{{ paquetes }}"
+          notify: "arranque_named"
+
+        - name: "Inciar el módulo meta para forzar reinicio named"
+          meta: flush_handlers
+      
+        - name: "Añadir servicio de DNS a firewall"
+          firewalld:
+            service: dns
+            permanent: yes
+            state: enabled
+            zone: public
+        
+        # - name: "Copia de seguridad"
+        #   copy:
+        #     src: "/etc/named.conf"
+        #     dest: /tmp/named.conf_{{ ansible_date_time.epoch }}
+
+        - name: "Comentar líneas fichero /etc/named.conf"
+          lineinfile:
+            path: /etc/named.conf
+            regexp: "{{ item }}"
+            line: "# {{item}}"
+          loop: "{{ lineas }}"
+          notify: "reinicio_named"
+        
+        - name: "Inciar el módulo meta para forzar reinicio named"
+          meta: flush_handlers
+      
+        - name: "Modificar archivo /etc/sysconfig/named"
+          lineinfile:
+            path: /etc/sysconfig/named
+            regexp: '^%OPTIONS=^'
+            line: "OPTIONS=-4"
+          notify: "reinicio_named"  
+
+        - name: "Quitar nameserver del archivo /etc/resolv.conf"
+          lineinfile:
+            path: /etc/resolv.conf
+            regexp: '^(.*)nameserver(.*)$'
+            state: absent
+                
+        - name: "Modificar archivo y añadir server - IP /etc/resolv.conf"
+          lineinfile:
+            path: /etc/resolv.conf
+            state: present
+            line: '{{ ansible_facts["hostname"] }} {{ ansible_facts["default_ipv4"]["address"] }}'
+    
+      always:
+        # - name: "Reinico"
+        #   reboot:
+        - name: "Estado del servicio named"
+          service:
+            name: named
+            state: started
+          register: estado
+        - name: "Muestra estado"
+          debug:
+            msg: "Estado del servicio: {{ estado.state }}"
+
+
+
+  handlers:
+    - name: "arranque_named"
+      service:
+        name: named
+        state: started
+        enabled: true
+
+    -  name: "reinicio_named"
+       service: 
+         name: named
+         state: restarted
+...
